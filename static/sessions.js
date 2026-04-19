@@ -423,6 +423,28 @@ function stopGatewaySSE(){
   }
 }
 
+// ── Session list polling (keeps sidebar fresh even when SSE is unavailable) ──
+let _sessionPollTimer = null;
+const SESSION_POLL_INTERVAL_MS = 30000; // 30 seconds
+
+function startSessionPolling(){
+  stopSessionPolling();
+  _sessionPollTimer = setInterval(async()=>{
+    // Skip refresh while user is actively renaming or has an action menu open
+    if(_renamingSid !== null) return;
+    if(_sessionActionMenu !== null) return;
+    try{ await renderSessionList(); }
+    catch(e){ /* ignore transient poll errors */ }
+  }, SESSION_POLL_INTERVAL_MS);
+}
+
+function stopSessionPolling(){
+  if(_sessionPollTimer){
+    clearInterval(_sessionPollTimer);
+    _sessionPollTimer = null;
+  }
+}
+
 let _searchDebounceTimer = null;
 let _contentSearchResults = [];  // results from /api/sessions/search content scan
 

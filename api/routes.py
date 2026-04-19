@@ -815,8 +815,25 @@ def handle_post(handler, parsed) -> bool:
             s = get_session(body["session_id"])
         except KeyError:
             return bad(handler, "Session not found", 404)
-        s.title = str(body["title"]).strip()[:80] or "Untitled"
+        new_title = str(body["title"]).strip()[:80] or "Untitled"
+        s.title = new_title
         s.save()
+        # Sync title to Hermes CLI session store (if present) so that
+        # `hermes sessions list` reflects the user-defined name.
+        try:
+            from pathlib import Path
+            cli_session_path = Path.home() / ".hermes" / "sessions" / f"session_{body['session_id']}.json"
+            if cli_session_path.exists():
+                import json as _json
+                with cli_session_path.open("r+", encoding="utf-8") as f:
+                    data = _json.load(f)
+                    data["title"] = new_title
+                    f.seek(0)
+                    _json.dump(data, f, ensure_ascii=False, indent=2)
+                    f.truncate()
+        except Exception:
+            # Best-effort sync; don't fail the rename if CLI store is absent/locked
+            pass
         return j(handler, {"session": s.compact()})
 
     if parsed.path == "/api/personality/set":
