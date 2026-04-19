@@ -8,6 +8,7 @@ const ICONS={
   dup:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4.5" y="4.5" width="8.5" height="8.5" rx="1.5"/><path d="M3 11.5V3h8.5"/></svg>',
   trash:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3.5 4.5h9M6.5 4.5V3h3v1.5M4.5 4.5v8.5h7v-8.5"/><line x1="7" y1="7" x2="7" y2="11"/><line x1="9" y1="7" x2="9" y2="11"/></svg>',
   more:'<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="none"><circle cx="8" cy="3" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="8" cy="13" r="1.25"/></svg>',
+  rename:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M10.5 2.5l3 3L5.5 13.5l-4 1 1-4z"/><path d="M9 4l3 3"/></svg>',
 };
 
 async function newSession(flash){
@@ -143,6 +144,46 @@ async function loadSession(sid){
 let _allSessions = [];  // cached for search filter
 let _renamingSid = null;  // session_id currently being renamed (blocks list re-renders)
 let _showArchived = false;  // toggle to show archived sessions
+
+// Global rename helper used by both double-click and the action menu.
+function _renameSession(session, titleEl){
+  closeSessionActionMenu();
+  _renamingSid = session.session_id;
+  const inp=document.createElement('input');
+  inp.className='session-title-input';
+  inp.value=session.title||'Untitled';
+  ['click','mousedown','dblclick','pointerdown'].forEach(ev=>
+    inp.addEventListener(ev, e2=>e2.stopPropagation())
+  );
+  const finish=async(save)=>{
+    _renamingSid = null;
+    if(save){
+      const newTitle=inp.value.trim()||'Untitled';
+      titleEl.textContent=newTitle;
+      session.title=newTitle;
+      if(S.session&&S.session.session_id===session.session_id){S.session.title=newTitle;syncTopbar();}
+      try{await api('/api/session/rename',{method:'POST',body:JSON.stringify({session_id:session.session_id,title:newTitle})});}
+      catch(err){setStatus('Rename failed: '+err.message);}
+    }
+    inp.replaceWith(titleEl);
+    // Allow list re-renders again after a short delay
+    setTimeout(()=>{ if(_renamingSid===null) renderSessionListFromCache(); },50);
+  };
+  inp.onkeydown=e2=>{
+    if(e2.key==='Enter'){
+      if(e2.isComposing){return;}
+      e2.preventDefault();
+      e2.stopPropagation();
+      finish(true);
+    }
+    if(e2.key==='Escape'){e2.preventDefault();e2.stopPropagation();finish(false);}
+  };
+  // onblur: cancel only -- no accidental saves
+  inp.onblur=()=>{ if(_renamingSid===session.session_id) finish(false); };
+  titleEl.replaceWith(inp);
+  setTimeout(()=>{inp.focus();inp.select();},10);
+}
+
 let _allProjects = [];  // cached project list
 let _activeProject = null;  // project_id filter (null = show all)
 let _showAllProfiles = false;  // false = filter to active profile only
@@ -210,6 +251,17 @@ function _openSessionActionMenu(session, anchorEl){
   closeSessionActionMenu();
   const menu=document.createElement('div');
   menu.className='session-action-menu open';
+  menu.appendChild(_buildSessionAction(
+    'Rename conversation',
+    'Change the title of this conversation',
+    ICONS.rename,
+    async()=>{
+      closeSessionActionMenu();
+      const row=anchorEl.closest('.session-item');
+      const titleEl=row&&row.querySelector('.session-title');
+      if(titleEl) _renameSession(session, titleEl);
+    }
+  ));
   menu.appendChild(_buildSessionAction(
     session.pinned?'Unpin conversation':'Pin conversation',
     session.pinned?'Remove from pinned':'Keep this conversation at the top',
@@ -633,43 +685,7 @@ function renderSessionListFromCache(){
     }
 
     // Rename: called directly when we confirm it's a double-click
-    const startRename=()=>{
-      closeSessionActionMenu();
-      _renamingSid = s.session_id;
-      const inp=document.createElement('input');
-      inp.className='session-title-input';
-      inp.value=s.title||'Untitled';
-      ['click','mousedown','dblclick','pointerdown'].forEach(ev=>
-        inp.addEventListener(ev, e2=>e2.stopPropagation())
-      );
-      const finish=async(save)=>{
-        _renamingSid = null;
-        if(save){
-          const newTitle=inp.value.trim()||'Untitled';
-          title.textContent=newTitle;
-          s.title=newTitle;
-          if(S.session&&S.session.session_id===s.session_id){S.session.title=newTitle;syncTopbar();}
-          try{await api('/api/session/rename',{method:'POST',body:JSON.stringify({session_id:s.session_id,title:newTitle})});}
-          catch(err){setStatus('Rename failed: '+err.message);}
-        }
-        inp.replaceWith(title);
-        // Allow list re-renders again after a short delay
-        setTimeout(()=>{ if(_renamingSid===null) renderSessionListFromCache(); },50);
-      };
-      inp.onkeydown=e2=>{
-        if(e2.key==='Enter'){
-          if(e2.isComposing){return;}
-          e2.preventDefault();
-          e2.stopPropagation();
-          finish(true);
-        }
-        if(e2.key==='Escape'){e2.preventDefault();e2.stopPropagation();finish(false);}
-      };
-      // onblur: cancel only -- no accidental saves
-      inp.onblur=()=>{ if(_renamingSid===s.session_id) finish(false); };
-      title.replaceWith(inp);
-      setTimeout(()=>{inp.focus();inp.select();},10);
-    };
+    const startRename=()=>_renameSession(s, title);
 
     // Pin indicator (inline, only when pinned — no space reserved otherwise)
     if(s.pinned){
