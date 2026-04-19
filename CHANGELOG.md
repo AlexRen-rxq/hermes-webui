@@ -1,5 +1,45 @@
 # Hermes Web UI -- Changelog
 
+## [v0.50.96] — 2026-04-19
+
+### Added
+- **Three-container Docker Compose reference config** — new `docker-compose.three-container.yml` adds an agent + dashboard + WebUI configuration on a shared `hermes-net` bridge, with memory/CPU limits and localhost-only port bindings by default.
+
+### Fixed
+- **Two-container compose: gateway port now exposed** — `127.0.0.1:8642:8642` added so the gateway is reachable from the host for debugging. Explicit `command: gateway run` replaces entrypoint defaults.
+- **Workspace path expansion** — `${HERMES_WORKSPACE:-~/workspace}` uses tilde in the default value, which Docker Compose correctly expands. `docker-compose.yml` also fixed to use `${HERMES_WORKSPACE:-${HOME}/workspace}` instead of nesting workspace inside the hermes home dir.
+- **`HERMES_WEBUI_STATE_DIR` default corrected** — `webui-mvp` → `webui`, matching the current default in `config.py`. Prevents silent state directory split for new deployments.
+(PR #708)
+
+## [v0.50.95] — 2026-04-19
+
+### Added
+- **Full Russian (ru-RU) localization** — 389/389 English keys covered, Slavic plural forms correctly implemented, native Cyrillic characters throughout. Login page Russian added. Russian locale now leads all non-English locales on key coverage. (PR #713, credit: @DrMaks22 and @renheqiang)
+
+## [v0.50.92] — 2026-04-19
+
+### Fixed
+- **XML tool-call syntax no longer leaks into chat bubbles** — `<function_calls>` blocks stripped server-side in the streaming pipeline and client-side in both the live stream and history render. Fixes the default DeepSeek profile showing raw XML on starter prompts. (#702)
+- **Workspace file panel shows an empty-state message** instead of a blank pane when no workspace is configured or the directory is empty. (#703)
+- **Notification settings description uses "app" instead of "tab"** — more accurate for native Mac app users. (#704)
+(PR #712)
+
+## [v0.50.94] — 2026-04-19
+
+### Fixed
+- **Mic toggle is now race-safe and works over Tailscale** — rapid click/toggle no longer leaves recording in inconsistent state (`_isRecording` flag with proper reset in all paths). `recognition.start()` is now correctly called (was previously only present in a comment string, so SpeechRecognition never started and the Tailscale fallback never fired). Falls back to `MediaRecorder` when `speech.googleapis.com` is unreachable. Browser capability preference persisted in `localStorage` across reloads. (PR #683 by @MatzAgent)
+
+## [v0.50.93] — 2026-04-19
+
+### Fixed
+- **Gateway message sync no longer corrupts the active session on slow networks** — the `sessions_changed` SSE handler now captures the active session ID before the async `import_cli` fetch and validates it in `.then()`, preventing session-switch races from overwriting the wrong conversation. Added `is_cli_session` guard so the handler only fires for CLI-originated sessions. The backend import path now also verifies that existing messages are a strict prefix of the fresh CLI messages before overwriting, preventing silent data loss on hybrid WebUI+CLI sessions. (PR #676 by @yunyunyunyun-yun)
+
+## [v0.50.91] — 2026-04-19
+
+### Added
+- **Slash command parity with hermes-agent** — `/retry`, `/undo`, `/stop`, `/title`, `/status`, `/voice` commands now work in the Web UI, matching gateway behaviour. New `GET /api/commands` endpoint and `api/session_ops.py` backend. (PR #618 by @renheqiang)
+- **Skills appear in `/` autocomplete** — the composer slash-command dropdown now surfaces Hermes skills from `/api/skills`. Skill entries show a `Skill` badge and are ranked below built-ins on collisions. (PR #701 by @franksong2702)
+
 ## [v0.50.87] — 2026-04-18
 
 ### Fixed
