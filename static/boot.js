@@ -183,13 +183,15 @@ $('btnAttach').onclick=()=>$('fileInput').click();
 (function(){
   const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   const _canRecordAudio=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
-  if(!SpeechRecognition&&!_canRecordAudio) return; // Browser unsupported — mic button stays hidden
+  console.log('[mic] init check — SpeechRecognition:',!!SpeechRecognition,'| mediaDevices:',!!navigator.mediaDevices,'| getUserMedia:',!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia),'| MediaRecorder:',!!window.MediaRecorder,'| canRecordAudio:',_canRecordAudio);
+  if(!SpeechRecognition&&!_canRecordAudio){ console.warn('[mic] Browser unsupported — hiding mic button'); return; }
 
   const btn=$('btnMic');
   const status=$('micStatus');
   const ta=$('msg');
   const statusText=status?status.querySelector('.status-text'):null;
   btn.style.display=''; // Show button — browser supports speech recognition or recording fallback
+  console.log('[mic] Mic button shown');
 
   let recognition=SpeechRecognition?new SpeechRecognition():null;
   let mediaRecorder=null;
@@ -350,7 +352,16 @@ $('btnAttach').onclick=()=>$('fileInput').click();
     }catch(err){
       window._micPendingSend=false;
       _stopTracks();
-      showToast(t('mic_denied'));
+      console.error('[mic] getUserMedia error:', err.name, err.message, err);
+      const errMsgs={
+        'NotAllowedError':'Microphone permission denied. Check browser/site permissions or macOS Privacy settings.',
+        'NotFoundError':'No microphone found. Please connect a microphone.',
+        'NotReadableError':'Microphone is in use by another application.',
+        'OverconstrainedError':'Microphone constraints cannot be satisfied.',
+        'SecurityError':'Microphone access blocked for security reasons (try localhost instead of IP).',
+        'AbortError':'Microphone request was cancelled.'
+      };
+      showToast(errMsgs[err.name]||('Microphone error: '+err.name+' - '+err.message));
     }
   };
 })();
